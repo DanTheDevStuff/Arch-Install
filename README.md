@@ -5,4 +5,5 @@ Use ```git clone https://github.com/DanTheDevStuff/Arch-Install``` to clone the 
 Then use ```sh /Arch-Install/install.sh``` to begin the installation
 The temporary user credentials are
 > User: temp
+
 > Password: temp
