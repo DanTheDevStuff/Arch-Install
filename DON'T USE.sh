@@ -7,10 +7,10 @@
 timedatectl set-ntp true
 
 # Prompt for disk selection
-echo "Select the disk to install Arch Linux (e.g., /dev/sda):"
+echo "Select the disk to install Arch Linux to (e.g., /dev/sda):"
 read DISK
 
-DISK = /dev/DISK
+DISK = /dev/$DISK
 
 # Prompt for hostname setup
 echo "Enter the desired hostname:"
