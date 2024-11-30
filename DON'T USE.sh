@@ -1,148 +1,93 @@
 #!/bin/bash
 
-# Arch Linux Installation Script
-# DanTheDevStuff’s Original Arch Installation Script with Modifications
+set -e
 
-# Update the system clock
-timedatectl set-ntp true
+echo "Arch Linux Extended Installer"
 
-# Prompt for disk selection
-echo "Select the disk to install Arch Linux to (e.g., /dev/sda):"
-read DISK
+# Confirm drive selection
+lsblk
+read -p "Enter the drive to install Arch Linux (e.g., /dev/sda): " DRIVE
 
-DISK = /dev/$DISK
+# Confirm erasure
+echo "WARNING: This will erase all data on $DRIVE!"
+read -p "Are you sure? (yes/no): " CONFIRM
+if [ "$CONFIRM" != "yes" ]; then
+    echo "Installation canceled."
+    exit 1
+fi
 
-# Prompt for hostname setup
-echo "Enter the desired hostname:"
-read HOSTNAME
+# Set hostname
+read -p "Enter a hostname for your system: " HOSTNAME
 
-# Prompt for timezone selection
-echo "Select your timezone (e.g., Europe/London):"
-read TIMEZONE
-
-# Partitioning (modify as needed for your system)
-(
-echo o       # Create a new empty DOS partition table
-echo n       # Add a new partition
-echo p       # Primary partition
-echo 1       # Partition number
-echo         # First sector (accept default)
-echo +20G    # Last sector (20 GB partition for root)
-echo n       # Add another partition
-echo p       # Primary partition
-echo 2       # Partition number
-echo         # First sector (accept default)
-echo         # Last sector (rest of the disk for home)
-echo w       # Write changes
-) | fdisk "$DISK"
+# Partition the drive
+echo "Partitioning $DRIVE..."
+parted -s "$DRIVE" mklabel gpt
+parted -s "$DRIVE" mkpart primary fat32 1MiB 512MiB
+parted -s "$DRIVE" set 1 esp on
+parted -s "$DRIVE" mkpart primary ext4 512MiB 100%
 
 # Format the partitions
-mkfs.ext4 "${DISK}1"
-mkfs.ext4 "${DISK}2"
+echo "Formatting partitions..."
+mkfs.fat -F32 "${DRIVE}1"
+mkfs.ext4 "${DRIVE}2"
 
 # Mount the partitions
-mount "${DISK}1" /mnt
-mkdir /mnt/home
-mount "${DISK}2" /mnt/home
+echo "Mounting partitions..."
+mount "${DRIVE}2" /mnt
+mkdir -p /mnt/boot
+mount "${DRIVE}1" /mnt/boot
 
-# Install essential packages
-pacstrap /mnt base linux linux-firmware
+# Install base system
+echo "Installing base system..."
+pacstrap /mnt base linux linux-firmware vim base-devel git
 
-# Generate an fstab file
+# Generate fstab
+echo "Generating fstab..."
 genfstab -U /mnt >> /mnt/etc/fstab
 
-# Change root into the new system
+# Configure system
+echo "Configuring system..."
 arch-chroot /mnt /bin/bash <<EOF
-
-# Set timezone
-ln -sf /usr/share/zoneinfo/$TIMEZONE /etc/localtime
+ln -sf /usr/share/zoneinfo/$(curl -s https://ipapi.co/timezone) /etc/localtime
 hwclock --systohc
-
-# Localization
-echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
 locale-gen
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
-
-# Network configuration
 echo "$HOSTNAME" > /etc/hostname
-cat <<NETEOF >> /etc/hosts
-127.0.0.1    localhost
-::1          localhost
-127.0.1.1    $HOSTNAME.localdomain $HOSTNAME
-NETEOF
-
-# Set root password
-echo "Set the root password:"
+echo -e "127.0.0.1\tlocalhost\n::1\tlocalhost\n127.0.1.1\t$HOSTNAME.localdomain\t$HOSTNAME" >> /etc/hosts
+mkinitcpio -P
 passwd
-
-# Prompt for username and password
-echo "Enter username:"
-read USERNAME
-echo "Set password for $USERNAME:"
-useradd -m -G wheel "$USERNAME"
-passwd "$USERNAME"
-
-# Install necessary packages
-pacman -S --noconfirm grub efibootmgr networkmanager
-
-# Static IP Configuration
-cat <<STATICIP >> /etc/systemd/network/20-wired.network
-[Match]
-Name=en*
-
-[Network]
-Address=192.168.1.100/24
-Gateway=192.168.1.1
-DNS=1.1.1.1
-STATICIP
-
-# Enable systemd-networkd
-systemctl enable systemd-networkd.service
-systemctl start systemd-networkd.service
-
-# Firewall Configuration
-iptables -P INPUT DROP
-iptables -P FORWARD DROP
-iptables -P OUTPUT ACCEPT
-
-iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-iptables -A INPUT -p tcp --dport 22 -j ACCEPT  # Allow SSH access
-iptables -A INPUT -i lo -j ACCEPT              # Allow loopback access
-
-# Save the firewall rules
-iptables-save > /etc/iptables/iptables.rules
-systemctl enable iptables
-systemctl start iptables
-
-# Install and configure bootloader
-grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-grub-mkconfig -o /boot/grub/grub.cfg
-
-# Install Yay and Git
-pacman -S --noconfirm git
-cd /opt
-git clone https://aur.archlinux.org/yay.git
-chown -R $USER:$USER yay
-cd yay
-sudo -u $USER makepkg -si --noconfirm
-cd ..
-
-# Enable NetworkManager
-systemctl enable NetworkManager
-
-# Exit chroot
-exit
 EOF
 
-# Unmount partitions
+# Install bootloader
+echo "Installing GRUB bootloader..."
+arch-chroot /mnt /bin/bash <<EOF
+pacman -S --noconfirm grub efibootmgr
+grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+grub-mkconfig -o /boot/grub/grub.cfg
+EOF
+
+# Create a user
+read -p "Enter username for the new user: " USERNAME
+arch-chroot /mnt /bin/bash <<EOF
+useradd -m -G wheel -s /bin/bash "$USERNAME"
+passwd "$USERNAME"
+echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
+EOF
+
+# Install yay, mono, feh, Xorg, and other software
+arch-chroot /mnt /bin/bash <<EOF
+pacman -Syu --noconfirm xorg-server xorg-xinit feh mono
+git clone https://aur.archlinux.org/yay.git /home/$USERNAME/yay
+chown -R $USERNAME:$USERNAME /home/$USERNAME/yay
+cd /home/$USERNAME/yay && sudo -u $USERNAME makepkg -si --noconfirm
+EOF
+
+# Copy Microsoft.VisualBasic.dll
+arch-chroot /mnt /bin/bash <<EOF
+cp /usr/lib/mono/4.5-api/Microsoft.VisualBasic.dll /usr/lib/mono/4.5/Microsoft.VisualBasic.dll
+EOF
+
+# Finish up
 umount -R /mnt
-
-# Prompt for reboot
-echo "Installation complete! Would you like to reboot now? (y/n):"
-read REBOOT_OPTION
-
-if [[ "$REBOOT_OPTION" == "y" || "$REBOOT_OPTION" == "Y" ]]; then
-    reboot
-else
-    echo "You can reboot later by running 'reboot' command."
-fi
+echo "Installation complete! You can now reboot into your new system."
