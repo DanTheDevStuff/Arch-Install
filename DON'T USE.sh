@@ -6,8 +6,9 @@ echo "Arch Linux Extended Installer"
 
 # Confirm drive selection
 lsblk
-read -p "Enter the drive to install Arch Linux (e.g., /dev/sda): " DRIVE
+read -p "Enter the drive to install Arch Linux (e.g., sda): " DRIVE
 DRIVE="/dev/$DRIVE"
+
 # Confirm erasure
 echo "WARNING: This will erase all data on $DRIVE!"
 read -p "Are you sure? (yes/no): " CONFIRM
@@ -75,17 +76,32 @@ passwd "$USERNAME"
 echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
 EOF
 
-# Install yay, mono, feh, Xorg, and other software
+# Install additional packages and configurations
 arch-chroot /mnt /bin/bash <<EOF
-pacman -Syu --noconfirm xorg-server xorg-xinit feh mono
-git clone https://aur.archlinux.org/yay.git /home/$USERNAME/yay
-chown -R $USERNAME:$USERNAME /home/$USERNAME/yay
-cd /home/$USERNAME/yay && sudo -u $USERNAME makepkg -si --noconfirm
+pacman -Syu --noconfirm xorg-server xorg-xinit openbox xfce4-panel feh whisker-menu sublime-text gedit
+cp /bin/pacman /bin/pac
+cp /bin/clear /bin/cls
+complete -cf sudo
+echo "KEYMAP=uk" > /etc/vconsole.conf
+
+# Prompt for laptop-specific setup
+read -p "Is this a laptop? (y/n): " laptop
+if [ "\$laptop" = "y" ]; then
+  pacman -S acpi --noconfirm
+  echo "export PS1='[\$(acpi -b | grep -P -o \"[0-9]+(?=%)\")%]\u@\h: \w\$'" >> "/home/$USERNAME/.bashrc"
+else
+  echo "export PS1='\u@\h: \w\$'" >> "/home/$USERNAME/.bashrc"
+fi
+
+# Enable bash completion
+printf '\nif [ -f /usr/share/bash-completion/bash_completion ]; then\n    . /usr/share/bash-completion/bash_completion\nfi\n' >> "/home/$USERNAME/.bashrc"
 EOF
 
-# Copy Microsoft.VisualBasic.dll
+# Prompt for additional packages
+echo "You can now add any additional packages to be installed."
+read -p "Enter any extra packages you want to install (space-separated): " EXTRA_PACKAGES
 arch-chroot /mnt /bin/bash <<EOF
-cp /usr/lib/mono/4.5-api/Microsoft.VisualBasic.dll /usr/lib/mono/4.5/Microsoft.VisualBasic.dll
+pacman -S --noconfirm $EXTRA_PACKAGES
 EOF
 
 # Finish up
