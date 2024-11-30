@@ -82,12 +82,17 @@ arch-chroot /mnt passwd "$USERNAME"
 
 # Install yay (AUR helper) as the user
 echo "Installing yay as the user..."
-arch-chroot /mnt su - "$USERNAME" -c "
+arch-chroot /mnt /bin/bash <<EOF
+su - "$USERNAME" -c "
     cd /tmp
     git clone https://aur.archlinux.org/yay.git
     cd yay
+    sed -i '/#PKGEXT=/a PKGEXT=\".pkg.tar\"' /etc/makepkg.conf # Optional: Prevent compression
+    echo '$USERNAME ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers.d/yay-install
     makepkg -si --noconfirm
+    rm /etc/sudoers.d/yay-install
 "
+EOF
 
 # Package search function
 search_packages() {
