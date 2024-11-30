@@ -76,14 +76,18 @@ echo "$USERNAME:$USERNAME" | chpasswd
 echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
 EOF
 
-# Install yay (AUR helper)
-echo "Installing yay (AUR helper)..."
-arch-chroot /mnt /bin/bash <<EOF
-cd /tmp
-git clone https://aur.archlinux.org/yay.git
-cd yay
-makepkg -si --noconfirm
-EOF
+# Ask the user to enter a password for the new user
+echo "Set password for user $USERNAME"
+arch-chroot /mnt passwd "$USERNAME"
+
+# Install yay (AUR helper) as the user
+echo "Installing yay as the user..."
+arch-chroot /mnt su - "$USERNAME" -c "
+    cd /tmp
+    git clone https://aur.archlinux.org/yay.git
+    cd yay
+    makepkg -si --noconfirm
+"
 
 # Package search function
 search_packages() {
@@ -109,13 +113,12 @@ echo "4) xorg-server - Xorg server"
 echo "5) xorg-xinit - X init system"
 echo "6) vlc - Media player"
 echo "7) pulseaudio - Sound system"
-echo "8) yay - AUR helper"
-echo "9) mono - Mono runtime"
-echo "10) neofetch - System information tool"
-echo "11) htop - Interactive process viewer"
-echo "12) git - Version control system"
-echo "13) vim - Text editor"
-echo "14) acpi - Battery and power management"
+echo "8) mono - Mono runtime"
+echo "9) neofetch - System information tool"
+echo "10) htop - Interactive process viewer"
+echo "11) git - Version control system"
+echo "12) vim - Text editor"
+echo "13) acpi - Battery and power management"
 read -p "Enter the numbers of the packages you want to install (e.g., 1 2 3): " PACKAGE_NUMBERS
 
 # Define package list based on selection
@@ -129,13 +132,12 @@ for number in $PACKAGE_NUMBERS; do
         5) PACKAGE_LIST+=" xorg-xinit" ;;
         6) PACKAGE_LIST+=" vlc" ;;
         7) PACKAGE_LIST+=" pulseaudio" ;;
-        8) PACKAGE_LIST+=" yay" ;;
-        9) PACKAGE_LIST+=" mono" ;;
-        10) PACKAGE_LIST+=" neofetch" ;;
-        11) PACKAGE_LIST+=" htop" ;;
-        12) PACKAGE_LIST+=" git" ;;
-        13) PACKAGE_LIST+=" vim" ;;
-        14) PACKAGE_LIST+=" acpi" ;;
+        8) PACKAGE_LIST+=" mono" ;;
+        9) PACKAGE_LIST+=" neofetch" ;;
+        10) PACKAGE_LIST+=" htop" ;;
+        11) PACKAGE_LIST+=" git" ;;
+        12) PACKAGE_LIST+=" vim" ;;
+        13) PACKAGE_LIST+=" acpi" ;;
         *) echo "Invalid selection: $number" ;;
     esac
 done
@@ -143,9 +145,9 @@ done
 # Install selected packages
 if [[ -n "$PACKAGE_LIST" ]]; then
     echo "Installing selected packages: $PACKAGE_LIST"
-    arch-chroot /mnt /bin/bash <<EOF
-pacman -S --noconfirm $PACKAGE_LIST
-EOF
+    arch-chroot /mnt su - "$USERNAME" -c "
+        yay -S --noconfirm $PACKAGE_LIST
+    "
 else
     echo "No packages selected."
 fi
@@ -155,9 +157,9 @@ read -p "Do you want to install additional packages? (yes/no): " ADDITIONAL
 if [ "$ADDITIONAL" = "yes" ]; then
     read -p "Enter additional packages (space-separated): " EXTRA_PACKAGES
     echo "Installing additional packages: $EXTRA_PACKAGES"
-    arch-chroot /mnt /bin/bash <<EOF
-pacman -S --noconfirm $EXTRA_PACKAGES
-EOF
+    arch-chroot /mnt su - "$USERNAME" -c "
+        yay -S --noconfirm $EXTRA_PACKAGES
+    "
 else
     echo "Skipping additional packages installation."
 fi
