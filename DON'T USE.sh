@@ -7,7 +7,7 @@ echo "Arch Linux Extended Installer"
 # Confirm drive selection
 lsblk
 read -p "Enter the drive to install Arch Linux (e.g., /dev/sda): " DRIVE
-
+DRIVE="/dev/$DRIVE"
 # Confirm erasure
 echo "WARNING: This will erase all data on $DRIVE!"
 read -p "Are you sure? (yes/no): " CONFIRM
