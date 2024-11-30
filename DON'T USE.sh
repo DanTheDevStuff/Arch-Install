@@ -64,7 +64,7 @@ EOF
 echo "Installing GRUB bootloader..."
 arch-chroot /mnt /bin/bash <<EOF
 pacman -S --noconfirm grub efibootmgr
-grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=$HOSTNAME
 grub-mkconfig -o /boot/grub/grub.cfg
 EOF
 
@@ -78,7 +78,7 @@ EOF
 
 # Install additional packages and configurations
 arch-chroot /mnt /bin/bash <<EOF
-pacman -Syu --noconfirm xorg-server xorg-xinit openbox xfce4-panel feh whisker-menu sublime-text gedit
+yay -Syu --noconfirm xorg-server xorg-xinit openbox xfce4-panel feh xfce4-whiskermenu-plugin sublime-text-4 gedit 
 cp /bin/pacman /bin/pac
 cp /bin/clear /bin/cls
 complete -cf sudo
